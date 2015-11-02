@@ -1,10 +1,9 @@
 import os
 import subprocess
-
 import bcrypt
 from pyfiglet import figlet_format
-
 from FS.FileSystem import FileSystem
+from FS.NoFreeClustersException import NoFreeClustersException
 
 os.system('clear')
 
@@ -22,12 +21,10 @@ users = {row.split()[1]: (int(row.split()[0]), row.split()[2]) for row in
 del fs
 
 login = ''
-# login = 'romanoff'
 while login not in users:
     login = input('login:')
 hashed = users[login][1]
 hash = ''
-# hash = bcrypt.hashpw('qwerty', hashed)
 while hash != hashed:
     hash = bcrypt.hashpw(input('password:'), hashed)
 
@@ -48,24 +45,46 @@ while True:
         file_name = command.split()[1]
         try:
             fs.create(file_name)
+        except FileExistsError:
+            print('Файл с данным именем уже существует')
+        except NoFreeClustersException:
+            print('Не осталось свободных блоков данных')
+        except ValueError:
+            print('Имя файла должно быть не более 59 символов')
         except Exception as e:
-            print(e.args[0])
+            print(str(e))
 
     if command.startswith('read'):
         file_name = command.split()[1]
         try:
             print(fs.read(file_name))
+        except FileNotFoundError:
+            print('Файл с таким именем отсутствует')
+        except PermissionError:
+            print('Нет прав на чтение')
         except Exception as e:
-            print(e.args[0])
+            print(str(e))
 
     if command.startswith('write'):
         file_name = command.split()[1]
         data = command[len('write ' + file_name) + 1:]
-        fs.write(file_name, data)
+        try:
+            fs.write(file_name, data)
+        except PermissionError:
+            print('Нет прав на запись')
+        except NoFreeClustersException:
+            print('Не осталось свободных блоков данных')
+        except Exception as e:
+            print(str(e))
 
     if command.startswith('delete'):
         file_name = command.split()[1]
-        fs.delete(file_name)
+        try:
+            fs.delete(file_name)
+        except FileNotFoundError:
+            print('Файл с таким именем отсутствует')
+        except PermissionError:
+            print('Нет прав на удаление (запись)')
 
     if command.startswith('list'):
         files_list = fs.files_list

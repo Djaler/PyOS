@@ -10,8 +10,8 @@ class SuperBlock(object):
                  inode_array_offset, first_cluster_offset):
         self.cluster_num = cluster_num
         self.free_cluster_num = free_cluster_num
+        self.inode_map_offset = inode_bitmap_offset
         self.inode_array_offset = inode_array_offset
-        self.inode_bitmap_offset = inode_bitmap_offset
         self.first_cluster_offset = first_cluster_offset
 
     @staticmethod
@@ -33,5 +33,5 @@ class SuperBlock(object):
     def write(self, file):
         file.seek(0)
         file.write(pack(self.format, self.cluster_num, self.free_cluster_num,
-                        self.inode_bitmap_offset, self.inode_array_offset,
+                        self.inode_map_offset, self.inode_array_offset,
                         self.first_cluster_offset))

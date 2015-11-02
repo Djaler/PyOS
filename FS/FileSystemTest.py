@@ -46,21 +46,21 @@ class MyTestCase(unittest.TestCase):
         FileSystem.format('test')
         fs = FileSystem('test', 0)
 
-        self.assertEqual(sorted(fs.files_list.keys()), ['users'])
+        self.assertEqual(sorted(fs._files_list.keys()), ['users'])
 
         fs.create('file1')
 
-        self.assertEqual(sorted(fs.files_list.keys()),
+        self.assertEqual(sorted(fs._files_list.keys()),
                          sorted(['users', 'file1']))
 
         fs.create('file2')
 
-        self.assertEqual(sorted(fs.files_list.keys()),
+        self.assertEqual(sorted(fs._files_list.keys()),
                          sorted(['users', 'file1', 'file2']))
 
         fs.delete('file2')
 
-        self.assertEqual(sorted(fs.files_list.keys()),
+        self.assertEqual(sorted(fs._files_list.keys()),
                          sorted(['users', 'file1']))
 
     def test_hash_table(self):

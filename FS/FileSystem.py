@@ -1,36 +1,39 @@
 from struct import pack, unpack
 from time import time
-
 import bcrypt
 from FS.SuperBlock import SuperBlock
 from FS.FAT import FAT
-from FS.InodeBitmap import InodeBitmap
+from FS.InodeMap import InodeMap
 from FS.Inode import Inode
 from FS.Root import Root
+from FS.NoFreeClustersException import NoFreeClustersException
 
 
 class FileSystem(object):
     def __init__(self, file_name, uid):
-        self.file = open(file_name, 'rb+')
-        self.superblock = SuperBlock.get_superblock(self.file)
-        self.fat = FAT.get_fat(self.superblock.cluster_num,
-                               self.superblock.fat_offset, self.file)
-        self.inode_bitmap = InodeBitmap.get_bitmap(self.superblock.cluster_num,
-                                                   self.superblock.inode_bitmap_offset,
-                                                   self.file)
-        self.uid = uid
-        self.files_list = Root.files_list(self.superblock, self.fat, self.file)
+        self._file = open(file_name, 'rb+')
+        self._superblock = SuperBlock.get_superblock(self._file)
+        self._fat = FAT.read(self._superblock.cluster_num,
+                             self._superblock.fat_offset, self._file,
+                             self._superblock)
+
+        self._inode_map = InodeMap.read(self._superblock.cluster_num,
+                                        self._superblock.inode_map_offset,
+                                        self._file)
+        self._uid = uid
+        self._files_list = Root.files_list(self._superblock, self._fat,
+                                           self._file)
 
     def __del__(self):
-        self.superblock.write(self.file)
-        self.fat.write(self.superblock.fat_offset, self.file)
-        self.inode_bitmap.write(self.superblock.inode_bitmap_offset, self.file)
-        self.file.close()
+        self._superblock.write(self._file)
+        self._fat.write(self._superblock.fat_offset, self._file)
+        self._inode_map.write(self._superblock.inode_map_offset, self._file)
+        self._file.close()
 
-    def cluster_offset(self, cluster_index):
+    def _cluster_offset(self, cluster_index):
         return (
-            self.superblock.first_cluster_offset + cluster_index *
-            self.superblock.cluster_size)
+            self._superblock.first_cluster_offset + cluster_index *
+            self._superblock.cluster_size)
 
     @staticmethod
     def format(file_name, password='admin', size=50 * 1024 * 1024):
@@ -40,9 +43,9 @@ class FileSystem(object):
         file.write(b'\0')
 
         superblock = SuperBlock.default(size)
-        fat = FAT.empty(superblock.cluster_num)
+        fat = FAT.empty(superblock.cluster_num, superblock)
 
-        inode_bitmap = InodeBitmap.empty(superblock.cluster_num)
+        inode_map = InodeMap.empty(superblock.cluster_num)
 
         file.seek(superblock.inode_array_offset)
         inode_table = [Inode(id) for id in range(superblock.cluster_num)]
@@ -57,11 +60,11 @@ class FileSystem(object):
             cluster_size)
 
         root = Root()
-        root.write(superblock, fat, inode_bitmap, inode_table[0], file)
+        root.write(superblock, fat, inode_map, inode_table[0], file)
 
         superblock.write(file)
         fat.write(superblock.fat_offset, file)
-        inode_bitmap.write(superblock.inode_bitmap_offset, file)
+        inode_map.write(superblock.inode_map_offset, file)
 
         file.close()
 
@@ -71,92 +74,81 @@ class FileSystem(object):
                  '0 admin %s' % bcrypt.hashpw(password, bcrypt.gensalt()))
 
     def create(self, file_name):
-        superblock = self.superblock
-        fat = self.fat
-        inode_bitmap = self.inode_bitmap
-        file = self.file
+        superblock = self._superblock
+        fat = self._fat
+        inode_map = self._inode_map
+        file = self._file
+        files_list = self._files_list
 
-        if file_name in self.files_list:
-            raise FileExistsError('Файл с данным именем уже существует')
+        if file_name in files_list:
+            raise FileExistsError()
 
         if superblock.free_cluster_num == 0:
-            raise NoFreeClustersException(
-                'Не осталось свободных блоков данных')
+            raise NoFreeClustersException()
 
         if len(file_name) > 59:
-            raise ValueError('Длина файла должна быть не более 59')
+            raise ValueError()
 
-        inode_array_offset = superblock.inode_array_offset
-        inode_id = inode_bitmap.list.index(True)
+        inode_id = inode_map.get_free_inode()
 
         Root.add(superblock, fat, file, file_name, inode_id)
 
-        inode = Inode(inode_id)
-        inode.uid = self.uid
-        inode.perm = 32
-        inode.ctime = inode.mtime = int(time())
-        first_cluster = fat.list.index(0)
-        inode.first_cluster = first_cluster
-        Inode.set_inode(inode_array_offset, file, inode_id, inode)
-        fat.set_el(superblock, first_cluster, -1)
-        inode_bitmap.list[inode.id] = False
-        self.files_list[file_name] = inode
+        now = int(time())
+        inode = Inode(inode_id, uid=self._uid, perm=32, ctime=now, mtime=now)
+        try:
+            first_cluster = fat.get_free_cluster()
+        except NoFreeClustersException:
+            raise
+        else:
+            inode.first_cluster = first_cluster
+            Inode.set_inode(superblock.inode_array_offset, file, inode_id,
+                            inode)
+            fat.set_el(index=first_cluster, value=-1)
+            inode_map.list[inode.id] = False
+            files_list[file_name] = inode
 
     def read(self, file_name):
-        if file_name not in self.files_list:
-            raise FileNotFoundError('Файл с таким именем отсутствует')
+        if file_name not in self._files_list:
+            raise FileNotFoundError()
 
-        superblock = self.superblock
-        fat = self.fat
-        file = self.file
+        superblock = self._superblock
+        fat = self._fat
+        file = self._file
+
         inode = Root.read(superblock, fat, file, file_name)
-
         perm = inode.perm // 10
-        if inode.uid == self.uid and perm < 2:
-            raise PermissionError('Нет прав на чтение')
-        elif inode.uid != self.uid and (perm != 3 and perm != 1):
-            raise PermissionError('Нет прав на чтение')
+        if inode.uid == self._uid and perm < 2:
+            raise PermissionError()
+        elif inode.uid != self._uid and (perm != 3 and perm != 1):
+            raise PermissionError()
 
-        first_cluster = inode.first_cluster
-        clusters = [first_cluster]
-
-        next = fat.list[first_cluster]
-        while next != -1:
-            clusters.append(next)
-            next = fat.list[next]
+        clusters = fat.get_clusters_chain(inode.first_cluster)
 
         buffer = []
         for cluster_index in clusters:
-            file.seek(self.cluster_offset(cluster_index))
+            file.seek(self._cluster_offset(cluster_index))
             buffer.append(file.read(superblock.cluster_size))
 
         buffer = b''.join(buffer)[:inode.size]
         return unpack('%ds' % len(buffer), buffer)[0].decode()
 
     def write(self, file_name, data):
-        if file_name not in self.files_list:
+        if file_name not in self._files_list:
             self.create(file_name)
 
-        superblock = self.superblock
-        fat = self.fat
-        file = self.file
-        cluster_offset = self.cluster_offset
+        superblock = self._superblock
+        fat = self._fat
+        file = self._file
+        cluster_offset = self._cluster_offset
 
         inode = Root.read(superblock, fat, file, file_name)
-
         perm = inode.perm % 10
-        if inode.uid == self.uid and perm < 2:
-            raise PermissionError('Нет прав на запись')
-        elif inode.uid != self.uid and (perm != 3 and perm != 1):
-            raise PermissionError('Нет прав на запись')
+        if inode.uid == self._uid and perm < 2:
+            raise PermissionError()
+        elif inode.uid != self._uid and (perm != 3 and perm != 1):
+            raise PermissionError()
 
-        first_cluster = inode.first_cluster
-        clusters = [first_cluster]
-
-        next = fat.list[first_cluster]
-        while next != -1:
-            clusters.append(next)
-            next = fat.list[next]
+        clusters = self._fat.get_clusters_chain(inode.first_cluster)
 
         data = bytes(data, 'utf-8')
         data = pack('%ds' % len(data), data)
@@ -184,54 +176,49 @@ class FileSystem(object):
                     inode.mtime = int(time())
                     Inode.set_inode(superblock.inode_array_offset, file,
                                     inode.id, inode)
-                    self.files_list[file_name] = inode
-                    raise NoFreeClustersException(
-                        'Не осталось свободных блоков данных')
+                    self._files_list[file_name] = inode
+                    raise NoFreeClustersException()
 
-                cluster_index = fat.list.index(0)
-                fat.set_el(superblock, prev_cluster_index, cluster_index)
+                cluster_index = fat.get_free_cluster()
+                fat.set_el(index=prev_cluster_index, value=cluster_index)
 
                 file.seek(cluster_offset(cluster_index))
                 file.write(data[index:(index + cluster_size)])
-                fat.set_el(superblock, cluster_index, -1)
+                fat.set_el(index=cluster_index, value=-1)
+
                 prev_cluster_index = cluster_index
-            fat.set_el(superblock, prev_cluster_index, -1)
+
+            fat.set_el(index=prev_cluster_index, value=-1)
 
         inode.size = len(data)
         inode.mtime = int(time())
         Inode.set_inode(superblock.inode_array_offset, file, inode.id, inode)
-        self.files_list[file_name] = inode
+        self._files_list[file_name] = inode
 
     def delete(self, file_name):
-        if file_name not in self.files_list:
-            raise FileNotFoundError('Файл с таким именем отсутствует')
+        if file_name not in self._files_list:
+            raise FileNotFoundError()
 
-        superblock = self.superblock
-        fat = self.fat
-        file = self.file
+        superblock = self._superblock
+        fat = self._fat
+        file = self._file
 
-        inode = Root.read(self.superblock, self.fat, self.file, file_name)
-
+        inode = Root.read(superblock, fat, file, file_name)
         perm = inode.perm % 10
-        if inode.uid == self.uid and perm < 2:
-            raise PermissionError('Нет прав на удаление')
-        elif inode.uid != self.uid and (perm != 3 and perm != 1):
-            raise PermissionError('Нет прав на удаление')
+        if inode.uid == self._uid and perm < 2:
+            raise PermissionError()
+        elif inode.uid != self._uid and (perm != 3 and perm != 1):
+            raise PermissionError()
 
-        first_cluster = inode.first_cluster
-        clusters = [first_cluster]
-        next = fat.list[first_cluster]
-        while next != -1:
-            clusters.append(next)
-            next = fat.list[next]
+        clusters = fat.get_clusters_chain(inode.first_cluster)
 
         Root.delete(superblock, fat, file, file_name)
         Inode.set_inode(superblock.inode_array_offset, file, inode.id, inode)
         for cluster in clusters:
-            fat.set_el(superblock, cluster, 0)
+            fat.set_el(index=cluster, value=0)
 
-        self.inode_bitmap.list[inode.id] = True
-        del (self.files_list[file_name])
+        self._inode_map.list[inode.id] = True
+        del (self._files_list[file_name])
 
     def add_user(self, login, password):
         users = {row.split()[1]: (int(row.split()[0]), row.split()[2]) for row
@@ -249,7 +236,6 @@ class FileSystem(object):
             users.items())
         self.write('users', data)
 
-
-class NoFreeClustersException(Exception):
-    def __init__(self, *args):
-        Exception.__init__(self, *args)
+    @property
+    def files_list(self):
+        return self._files_list.copy()
