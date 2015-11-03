@@ -25,6 +25,6 @@ class Inode(object):
         return Inode(*unpack(Inode.format, file.read(Inode.size)))
 
     @staticmethod
-    def set_inode(inode_array_offset, file, index, inode):
-        file.seek(inode_array_offset + Inode.size * index)
+    def set_inode(inode_array_offset, file, inode):
+        file.seek(inode_array_offset + Inode.size * inode.id)
         file.write(inode.pack())

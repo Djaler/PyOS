@@ -20,9 +20,8 @@ class FileSystem(object):
         self._inode_map = InodeMap.read(self._superblock.cluster_num,
                                         self._superblock.inode_map_offset,
                                         self._file)
+        self._root = Root(self._superblock, self._fat, self._file)
         self._uid = uid
-        self._files_list = Root.files_list(self._superblock, self._fat,
-                                           self._file)
 
     def __del__(self):
         self._superblock.write(self._file)
@@ -35,52 +34,13 @@ class FileSystem(object):
             self._superblock.first_cluster_offset + cluster_index *
             self._superblock.cluster_size)
 
-    @staticmethod
-    def format(file_name, password='admin', size=50 * 1024 * 1024):
-        file = open(file_name, 'wb')
-
-        file.seek(size - 1)
-        file.write(b'\0')
-
-        superblock = SuperBlock.default(size)
-        fat = FAT.empty(superblock.cluster_num, superblock)
-
-        inode_map = InodeMap.empty(superblock.cluster_num)
-
-        file.seek(superblock.inode_array_offset)
-        inode_table = [Inode(id) for id in range(superblock.cluster_num)]
-        for inode in inode_table:
-            file.write(inode.pack())
-
-        cluster_size = superblock.cluster_size
-        offset = cluster_size - file.tell() % cluster_size
-        superblock.first_cluster_offset = file.tell() + offset
-        superblock.free_cluster_num = (
-            superblock.cluster_num - superblock.first_cluster_offset //
-            cluster_size)
-
-        root = Root()
-        root.write(superblock, fat, inode_map, inode_table[0], file)
-
-        superblock.write(file)
-        fat.write(superblock.fat_offset, file)
-        inode_map.write(superblock.inode_map_offset, file)
-
-        file.close()
-
-        fs = FileSystem(file_name, 0)
-        fs.create('users')
-        fs.write('users',
-                 '0 admin %s' % bcrypt.hashpw(password, bcrypt.gensalt()))
-
     def create(self, file_name):
         superblock = self._superblock
         fat = self._fat
         inode_map = self._inode_map
         file = self._file
-        files_list = self._files_list
 
-        if file_name in files_list:
+        if file_name in self._root.list:
             raise FileExistsError()
 
         if superblock.free_cluster_num == 0:
@@ -91,8 +51,6 @@ class FileSystem(object):
 
         inode_id = inode_map.get_free_inode()
 
-        Root.add(superblock, fat, file, file_name, inode_id)
-
         now = int(time())
         inode = Inode(inode_id, uid=self._uid, perm=32, ctime=now, mtime=now)
         try:
@@ -101,21 +59,20 @@ class FileSystem(object):
             raise
         else:
             inode.first_cluster = first_cluster
-            Inode.set_inode(superblock.inode_array_offset, file, inode_id,
-                            inode)
-            fat.set_el(index=first_cluster, value=-1)
-            inode_map.list[inode.id] = False
-            files_list[file_name] = inode
+            Inode.set_inode(superblock.inode_array_offset, file, inode)
+            fat.set(index=first_cluster, value=-1)
+            inode_map.set(inode.id, False)
+            self._root.add(file_name, inode)
 
     def read(self, file_name):
-        if file_name not in self._files_list:
+        if file_name not in self._root.list:
             raise FileNotFoundError()
 
         superblock = self._superblock
         fat = self._fat
         file = self._file
 
-        inode = Root.read(superblock, fat, file, file_name)
+        inode = self._root.read(file_name)
         perm = inode.perm // 10
         if inode.uid == self._uid and perm < 2:
             raise PermissionError()
@@ -133,7 +90,7 @@ class FileSystem(object):
         return unpack('%ds' % len(buffer), buffer)[0].decode()
 
     def write(self, file_name, data):
-        if file_name not in self._files_list:
+        if file_name not in self._root.list:
             self.create(file_name)
 
         superblock = self._superblock
@@ -141,7 +98,7 @@ class FileSystem(object):
         file = self._file
         cluster_offset = self._cluster_offset
 
-        inode = Root.read(superblock, fat, file, file_name)
+        inode = self._root.read(file_name)
         perm = inode.perm % 10
         if inode.uid == self._uid and perm < 2:
             raise PermissionError()
@@ -174,36 +131,35 @@ class FileSystem(object):
                 if superblock.free_cluster_num == 0:
                     inode.size = index
                     inode.mtime = int(time())
-                    Inode.set_inode(superblock.inode_array_offset, file,
-                                    inode.id, inode)
-                    self._files_list[file_name] = inode
+                    Inode.set_inode(superblock.inode_array_offset, file, inode)
+                    self._root.update_inode(file_name, inode)
                     raise NoFreeClustersException()
 
                 cluster_index = fat.get_free_cluster()
-                fat.set_el(index=prev_cluster_index, value=cluster_index)
+                fat.set(index=prev_cluster_index, value=cluster_index)
 
                 file.seek(cluster_offset(cluster_index))
                 file.write(data[index:(index + cluster_size)])
-                fat.set_el(index=cluster_index, value=-1)
+                fat.set(index=cluster_index, value=-1)
 
                 prev_cluster_index = cluster_index
 
-            fat.set_el(index=prev_cluster_index, value=-1)
+            fat.set(index=prev_cluster_index, value=-1)
 
         inode.size = len(data)
         inode.mtime = int(time())
-        Inode.set_inode(superblock.inode_array_offset, file, inode.id, inode)
-        self._files_list[file_name] = inode
+        Inode.set_inode(superblock.inode_array_offset, file, inode)
+        self._root.update_inode(file_name, inode)
 
     def delete(self, file_name):
-        if file_name not in self._files_list:
+        if file_name not in self._root.list:
             raise FileNotFoundError()
 
         superblock = self._superblock
         fat = self._fat
         file = self._file
 
-        inode = Root.read(superblock, fat, file, file_name)
+        inode = self._root.read(file_name)
         perm = inode.perm % 10
         if inode.uid == self._uid and perm < 2:
             raise PermissionError()
@@ -212,19 +168,36 @@ class FileSystem(object):
 
         clusters = fat.get_clusters_chain(inode.first_cluster)
 
-        Root.delete(superblock, fat, file, file_name)
-        Inode.set_inode(superblock.inode_array_offset, file, inode.id, inode)
+        self._root.delete(file_name)
+        Inode.set_inode(superblock.inode_array_offset, file, inode)
         for cluster in clusters:
-            fat.set_el(index=cluster, value=0)
+            fat.set(index=cluster, value=0)
 
-        self._inode_map.list[inode.id] = True
-        del (self._files_list[file_name])
+        self._inode_map.set(inode.id, True)
+
+    def rename(self, src, dst):
+        files_list = self._root.list
+
+        if src not in files_list:
+            raise FileNotFoundError()
+        if dst in files_list:
+            raise FileExistsError()
+
+        inode = self._root.read(src)
+        perm = inode.perm % 10
+        if inode.uid == self._uid and perm < 2:
+            raise PermissionError()
+        elif inode.uid != self._uid and (perm != 3 and perm != 1):
+            raise PermissionError()
+
+        self._root.delete(src)
+        self._root.add(dst, inode)
 
     def add_user(self, login, password):
         users = {row.split()[1]: (int(row.split()[0]), row.split()[2]) for row
                  in self.read('users').split('\n')}
         if login in users:
-            raise ValueError('Пользователь с данным логином уже существует')
+            raise ValueError()
 
         next_id = max(id for id, hash in users.values()) + 1
         hash = bcrypt.hashpw(password, bcrypt.gensalt())
@@ -236,6 +209,56 @@ class FileSystem(object):
             users.items())
         self.write('users', data)
 
+    def del_user(self, login):
+        users = {row.split()[1]: (int(row.split()[0]), row.split()[2]) for row
+                 in self.read('users').split('\n')}
+        if login not in users:
+            raise ValueError
+
+        del (users[login])
+
+        data = '\n'.join(
+            '{0} {1} {2}'.format(id, login, hash) for login, (id, hash) in
+            users.items())
+        self.write('users', data)
+
+    @staticmethod
+    def format(file_name, password='admin', size=50 * 1024 * 1024):
+        file = open(file_name, 'wb')
+
+        file.seek(size - 1)
+        file.write(b'\0')
+
+        superblock = SuperBlock.default(size)
+        fat = FAT.empty(superblock.cluster_num, superblock)
+
+        inode_map = InodeMap.empty(superblock.cluster_num)
+
+        file.seek(superblock.inode_array_offset)
+        inode_table = [Inode(id) for id in range(superblock.cluster_num)]
+        for inode in inode_table:
+            file.write(inode.pack())
+
+        cluster_size = superblock.cluster_size
+        offset = cluster_size - file.tell() % cluster_size
+        superblock.first_cluster_offset = file.tell() + offset
+        superblock.free_cluster_num = (
+            superblock.cluster_num - superblock.first_cluster_offset //
+            cluster_size)
+
+        Root.write(superblock, fat, inode_map, inode_table[0], file)
+
+        superblock.write(file)
+        fat.write(superblock.fat_offset, file)
+        inode_map.write(superblock.inode_map_offset, file)
+
+        file.close()
+
+        fs = FileSystem(file_name, 0)
+        fs.create('users')
+        fs.write('users',
+                 '0 admin %s' % bcrypt.hashpw(password, bcrypt.gensalt()))
+
     @property
     def files_list(self):
-        return self._files_list.copy()
+        return self._root.list

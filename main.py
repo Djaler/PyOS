@@ -13,6 +13,7 @@ if not os.path.exists('file'):
     while not password:
         password = input('Введите желаемый пароль admin: ')
     FileSystem.format('file', password)
+    os.system('clear')
 
 fs = FileSystem('file', 0)
 
@@ -35,7 +36,6 @@ print(figlet_format('WELCOME HOME,  MR. %s' % login.upper(), font='big',
 
 fs = FileSystem('file', users[login][0])
 
-# TODO добавление и удаление пользователей
 # TODO изменение атрибутов
 
 while True:
@@ -61,7 +61,7 @@ while True:
         except FileNotFoundError:
             print('Файл с таким именем отсутствует')
         except PermissionError:
-            print('Нет прав на чтение')
+            print('Нет прав')
         except Exception as e:
             print(str(e))
 
@@ -71,7 +71,7 @@ while True:
         try:
             fs.write(file_name, data)
         except PermissionError:
-            print('Нет прав на запись')
+            print('Нет прав')
         except NoFreeClustersException:
             print('Не осталось свободных блоков данных')
         except Exception as e:
@@ -84,7 +84,23 @@ while True:
         except FileNotFoundError:
             print('Файл с таким именем отсутствует')
         except PermissionError:
-            print('Нет прав на удаление (запись)')
+            print('Нет прав')
+        except Exception as e:
+            print(str(e))
+
+    if command.startswith('rename'):
+        src = command.split()[1]
+        dst = command.split()[2]
+        try:
+            fs.rename(src, dst)
+        except FileNotFoundError:
+            print('Файл с таким именем отсутствует')
+        except PermissionError:
+            print('Нет прав')
+        except FileExistsError:
+            print('Файл с данным именем уже существует')
+        except Exception as e:
+            print(str(e))
 
     if command.startswith('list'):
         files_list = fs.files_list
@@ -102,8 +118,23 @@ while True:
         password = command.split()[2]
         try:
             fs.add_user(login, password)
+        except ValueError:
+            print('Такой пользователь уже существует')
+        except PermissionError:
+            print('Нет прав')
         except Exception as e:
-            print(e.args[0])
+            print(str(e))
+
+    if command.startswith('del_user'):
+        login = command.split()[1]
+        try:
+            fs.del_user(login)
+        except ValueError:
+            print('Такого пользователя нет')
+        except PermissionError:
+            print('Нет прав')
+        except Exception as e:
+            print(str(e))
 
     if command.startswith('exit'):
         exit()
