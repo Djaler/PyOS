@@ -13,12 +13,12 @@ class Root(object):
         self._init_files_list()
 
     @staticmethod
-    def write(superblock, fat, inode_map, inode, file):
+    def write(superblock, fat, inode_map, file):
         file.seek(superblock.first_cluster_offset)
         file.write(pack('1024i', *[-1] * 1024))
-        inode.size = 4096
-        inode.ctime = inode.mtime = int(time())
-        inode.first_cluster = 0
+
+        now = int(time())
+        inode = Inode(id=0, size=4096, ctime=now, mtime=now, first_cluster=0)
         Inode.set_inode(superblock.inode_array_offset, file, inode)
         inode_map.set(inode.id, False)
         fat.set(0, -1)
@@ -49,9 +49,10 @@ class Root(object):
             current_cluster = 0
 
             file.seek(self._cluster_offset(clusters[0]))
-            while True:
+            empty_space = None
+            while not empty_space:
                 data = unpack('59sci', file.read(64))
-                if int.from_bytes(data[1], 'big') == 0:
+                if ord(data[1]) == 0:
                     empty_space = file.tell() - 64
                     break
 
@@ -65,6 +66,11 @@ class Root(object):
                     fat.set(cluster_index, -1)
                     clusters.append(cluster_index)
                     file.seek(self._cluster_offset(cluster_index))
+
+                    inode = Inode.get_inode(superblock.inode_array_offset,
+                                            file, 0)
+                    inode.size = len(clusters) * superblock.cluster_size
+                    Inode.set_inode(superblock.inode_array_offset, file, inode)
 
                 current_cluster += 1
                 file.seek(self._cluster_offset(clusters[current_cluster]))
@@ -145,7 +151,8 @@ class Root(object):
 
     def _cluster_offset(self, cluster_index):
         return (
-            self._superblock.first_cluster_offset + cluster_index * self._superblock.cluster_size)
+            self._superblock.first_cluster_offset + cluster_index *
+            self._superblock.cluster_size)
 
     def update_inode(self, file_name, inode):
         self._list[file_name] = inode

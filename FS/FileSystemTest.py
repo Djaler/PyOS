@@ -7,7 +7,6 @@ class MyTestCase(unittest.TestCase):
         FileSystem.format('test')
         fs = FileSystem('test', 1)
 
-        fs.create('file1')
         text = '1'
         fs.write('file1', text)
 
@@ -18,7 +17,6 @@ class MyTestCase(unittest.TestCase):
         FileSystem.format('test')
         fs = FileSystem('test', 1)
 
-        fs.create('file1')
         text = ''.join(str(i) for i in range(1000))
         fs.write('file1', text)
 
@@ -31,7 +29,6 @@ class MyTestCase(unittest.TestCase):
         res = fs.read('file1')
         self.assertEqual(text, res)
 
-        fs.create('file2')
         text = ''.join(str(i) for i in range(1000000))
         fs.write('file2', text)
 
@@ -89,11 +86,9 @@ class MyTestCase(unittest.TestCase):
         FileSystem.format('test')
         fs = FileSystem('test', 1)
 
-        for i in range(10000):
-            fs.create(str(i))
-        for i in range(10000):
+        for i in range(1000):
             fs.write(str(i), str(i))
-        for i in range(10000):
+        for i in range(1000):
             self.assertEqual(fs.read(str(i)), str(i))
 
     def test_users(self):
@@ -111,7 +106,7 @@ class MyTestCase(unittest.TestCase):
             fs.del_user('user1')
 
         with self.assertRaises(ValueError):
-            fs.add_user('admin','password')
+            fs.add_user('admin', 'password')
 
 
 if __name__ == '__main__':

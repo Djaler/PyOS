@@ -1,5 +1,4 @@
 from struct import pack, unpack, calcsize
-from FS.NoFreeClustersException import NoFreeClustersException
 
 
 class FAT(object):
@@ -20,10 +19,7 @@ class FAT(object):
         file.write(pack('%di' % len(self._list), *self._list))
 
     def get_free_cluster(self):
-        try:
-            return self._list.index(0)
-        except ValueError:
-            raise NoFreeClustersException()
+        return self._list.index(0)
 
     def get_clusters_chain(self, first_cluster):
         clusters = [first_cluster]
