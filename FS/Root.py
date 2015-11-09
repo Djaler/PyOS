@@ -80,6 +80,7 @@ class Root(object):
                 pack('59sci', file_name, bytes([len(file_name)]), inode.id))
 
         self._list[file_name.decode()] = inode
+        Inode.set_inode(superblock.inode_array_offset, file, inode)
 
     def read(self, file_name):
         return self._list[file_name]
@@ -156,6 +157,7 @@ class Root(object):
 
     def update_inode(self, file_name, inode):
         self._list[file_name] = inode
+        Inode.set_inode(self._superblock.inode_array_offset, self._file, inode)
 
     @property
     def list(self):

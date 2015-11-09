@@ -13,6 +13,38 @@ class MyTestCase(unittest.TestCase):
         res = fs.read('file1')
         self.assertEqual(text, res)
 
+    def test_append_write(self):
+        FileSystem.format('test')
+        fs = FileSystem('test', 1)
+
+        text = ''.join(str(i) for i in range(1000))
+        fs.write('file1', text)
+
+        res = fs.read('file1')
+        self.assertEqual(text, res)
+
+        append_text = ''.join(str(i) for i in reversed(range(1000)))
+        fs.append_write('file1', append_text)
+
+        res = fs.read('file1')
+        self.assertEqual(text + append_text, res)
+
+    def test_set_permissions(self):
+        FileSystem.format('test')
+        fs = FileSystem('test', 1)
+
+        fs.create('file')
+        self.assertTrue(fs.files_list['file'].owner_read)
+        self.assertTrue(fs.files_list['file'].owner_write)
+        self.assertTrue(fs.files_list['file'].other_read)
+        self.assertFalse(fs.files_list['file'].other_write)
+
+        fs.set_permissions('file', True, True, False, False)
+        self.assertTrue(fs.files_list['file'].owner_read)
+        self.assertTrue(fs.files_list['file'].owner_write)
+        self.assertFalse(fs.files_list['file'].other_read)
+        self.assertFalse(fs.files_list['file'].other_write)
+
     def test_read_and_write(self):
         FileSystem.format('test')
         fs = FileSystem('test', 1)
