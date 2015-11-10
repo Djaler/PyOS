@@ -66,10 +66,11 @@ class FileSystem(object):
             raise FileNotFoundError('Файл с таким именем отсутствует')
 
         inode = root.read(file_name)
-        if inode.uid == uid and not inode.owner_read:
-            raise PermissionError('Нет прав')
-        elif inode.uid != uid and not inode.other_read:
-            raise PermissionError('Нет прав')
+        if uid != 0:
+            if inode.uid == uid and not inode.owner_read:
+                raise PermissionError('Нет прав')
+            elif inode.uid != uid and not inode.other_read:
+                raise PermissionError('Нет прав')
 
         clusters = fat.get_clusters_chain(inode.first_cluster)
 
@@ -93,10 +94,11 @@ class FileSystem(object):
             self.create(file_name)
 
         inode = root.read(file_name)
-        if inode.uid == uid and not inode.owner_write:
-            raise PermissionError('Нет прав')
-        elif inode.uid != uid and not inode.other_write:
-            raise PermissionError('Нет прав')
+        if uid != 0:
+            if inode.uid == uid and not inode.owner_write:
+                raise PermissionError('Нет прав')
+            elif inode.uid != uid and not inode.other_write:
+                raise PermissionError('Нет прав')
 
         clusters = fat.get_clusters_chain(inode.first_cluster)
 
@@ -136,7 +138,7 @@ class FileSystem(object):
         inode.set_mtime()
         root.update_inode(file_name, inode)
 
-    def append_write(self, file_name, data):
+    def append(self, file_name, data):
         superblock = self._superblock
         fat = self._fat
         file = self._file
@@ -148,10 +150,11 @@ class FileSystem(object):
             self.create(file_name)
 
         inode = root.read(file_name)
-        if inode.uid == uid and not inode.owner_write:
-            raise PermissionError('Нет прав')
-        elif inode.uid != uid and not inode.other_write:
-            raise PermissionError('Нет прав')
+        if uid != 0:
+            if inode.uid == uid and not inode.owner_write:
+                raise PermissionError('Нет прав')
+            elif inode.uid != uid and not inode.other_write:
+                raise PermissionError('Нет прав')
 
         clusters = fat.get_clusters_chain(inode.first_cluster)
 
@@ -194,10 +197,11 @@ class FileSystem(object):
             raise FileNotFoundError('Файл с таким именем отсутствует')
 
         inode = root.read(file_name)
-        if inode.uid == uid and not inode.owner_write:
-            raise PermissionError('Нет прав')
-        elif inode.uid != uid and not inode.other_write:
-            raise PermissionError('Нет прав')
+        if uid != 0:
+            if inode.uid == uid and not inode.owner_write:
+                raise PermissionError('Нет прав')
+            elif inode.uid != uid and not inode.other_write:
+                raise PermissionError('Нет прав')
 
         clusters = fat.get_clusters_chain(inode.first_cluster)
 
@@ -218,10 +222,11 @@ class FileSystem(object):
             raise FileExistsError('Файл с таким именем уже существует')
 
         inode = root.read(src)
-        if inode.uid == uid and not inode.owner_write:
-            raise PermissionError('Нет прав')
-        elif inode.uid != uid and not inode.other_write:
-            raise PermissionError('Нет прав')
+        if uid != 0:
+            if inode.uid == uid and not inode.owner_write:
+                raise PermissionError('Нет прав')
+            elif inode.uid != uid and not inode.other_write:
+                raise PermissionError('Нет прав')
 
         root.delete(src)
         root.add(dst, inode)
@@ -235,10 +240,11 @@ class FileSystem(object):
             raise FileNotFoundError('Файл с таким именем отсутствует')
 
         inode = root.read(file_name)
-        if inode.uid == uid and not inode.owner_write:
-            raise PermissionError('Нет прав')
-        elif inode.uid != uid and not inode.other_write:
-            raise PermissionError('Нет прав')
+        if uid != 0:
+            if inode.uid == uid and not inode.owner_write:
+                raise PermissionError('Нет прав')
+            elif inode.uid != uid and not inode.other_write:
+                raise PermissionError('Нет прав')
         inode.set_permissions(*permissions)
         root.update_inode(file_name, inode)
 
@@ -262,6 +268,12 @@ class FileSystem(object):
         users = self.users
         if login not in users:
             raise ValueError('Такого пользователя нет')
+
+        uid = users[login][0]
+        for file, inode in self.files_list.items():
+            if inode.uid == uid:
+                inode.uid = 0
+                self._root.update_inode(file, inode)
 
         del (users[login])
 

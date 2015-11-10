@@ -59,6 +59,10 @@ class Inode(object):
     def uid(self):
         return self._uid
 
+    @uid.setter
+    def uid(self, uid):
+        self._uid = uid
+
     @property
     def first_cluster(self):
         return self._first_cluster

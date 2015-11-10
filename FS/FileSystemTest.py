@@ -24,7 +24,7 @@ class MyTestCase(unittest.TestCase):
         self.assertEqual(text, res)
 
         append_text = ''.join(str(i) for i in reversed(range(1000)))
-        fs.append_write('file1', append_text)
+        fs.append('file1', append_text)
 
         res = fs.read('file1')
         self.assertEqual(text + append_text, res)
