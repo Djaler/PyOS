@@ -5,7 +5,7 @@ from FS.FileSystem import FileSystem
 class MyTestCase(unittest.TestCase):
     def test_read_and_write_small(self):
         FileSystem.format('test')
-        fs = FileSystem('test', 1)
+        fs = FileSystem('test')
 
         text = '1'
         fs.write('file1', text)
@@ -15,7 +15,7 @@ class MyTestCase(unittest.TestCase):
 
     def test_append_write(self):
         FileSystem.format('test')
-        fs = FileSystem('test', 1)
+        fs = FileSystem('test')
 
         text = ''.join(str(i) for i in range(1000))
         fs.write('file1', text)
@@ -31,7 +31,7 @@ class MyTestCase(unittest.TestCase):
 
     def test_set_permissions(self):
         FileSystem.format('test')
-        fs = FileSystem('test', 1)
+        fs = FileSystem('test')
 
         fs.create('file')
         self.assertTrue(fs.files_list['file'].owner_read)
@@ -47,7 +47,7 @@ class MyTestCase(unittest.TestCase):
 
     def test_read_and_write(self):
         FileSystem.format('test')
-        fs = FileSystem('test', 1)
+        fs = FileSystem('test')
 
         text = ''.join(str(i) for i in range(1000))
         fs.write('file1', text)
@@ -72,7 +72,7 @@ class MyTestCase(unittest.TestCase):
 
     def test_create_and_delete(self):
         FileSystem.format('test')
-        fs = FileSystem('test', 0)
+        fs = FileSystem('test')
         self.assertEqual(sorted(fs.files_list.keys()), ['users'])
 
         fs.create('file1')
@@ -96,7 +96,7 @@ class MyTestCase(unittest.TestCase):
 
     def test_rename(self):
         FileSystem.format('test')
-        fs = FileSystem('test', 0)
+        fs = FileSystem('test')
         self.assertEqual(sorted(fs.files_list.keys()), ['users'])
 
         fs.create('file1')
@@ -116,7 +116,7 @@ class MyTestCase(unittest.TestCase):
 
     def test_hash_table(self):
         FileSystem.format('test')
-        fs = FileSystem('test', 1)
+        fs = FileSystem('test')
 
         for i in range(1000):
             fs.write(str(i), str(i))
@@ -125,7 +125,7 @@ class MyTestCase(unittest.TestCase):
 
     def test_users(self):
         FileSystem.format('test')
-        fs = FileSystem('test', 0)
+        fs = FileSystem('test')
         self.assertIn('admin', fs.read('users'))
 
         fs.add_user('user1', 'password')

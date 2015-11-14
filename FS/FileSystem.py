@@ -1,4 +1,3 @@
-from struct import pack
 from time import time
 import bcrypt
 from FS.SuperBlock import SuperBlock
@@ -9,7 +8,7 @@ from FS.Root import Root
 
 
 class FileSystem(object):
-    def __init__(self, file_name, uid):
+    def __init__(self, file_name, uid=0):
         self._file = open(file_name, 'rb+')
         self._superblock = SuperBlock.get_superblock(self._file)
         self._fat = FAT.read(self._superblock.cluster_num,
@@ -187,6 +186,15 @@ class FileSystem(object):
         inode.size += len(data)
         inode.set_mtime()
         root.update_inode(file_name, inode)
+
+    def copy(self, src, dst):
+        try:
+            data = self.read(src)
+            self.create(dst)
+            self.write(dst, data)
+        except (FileNotFoundError, PermissionError, FileExistsError,
+                NoFreeClustersException):
+            raise
 
     def delete(self, file_name):
         fat = self._fat
