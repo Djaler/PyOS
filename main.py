@@ -164,6 +164,7 @@ class PyOS(object):
                            'w' if inode.other_write else '-']
             table.add_row(
                 [file_name, size, ''.join(permissions), users[inode.uid]])
+
         print(table)
 
     def _add_user(self, command):
@@ -208,28 +209,27 @@ class PyOS(object):
 
     def _login(self, users):
         login = input('login:')
-        if login.lower() != 'neo':
-            while login not in users:
-                print('Неверное имя пользователя')
-                login = input('login:')
-            hashed = users[login][1]
+        while login not in users:
+            print('Неверное имя пользователя')
+            login = input('login:')
+
+        hashed = users[login][1]
+        hash = bcrypt.hashpw(getpass('password:'), hashed)
+        while hash != hashed:
+            print('Неверный пароль')
             hash = bcrypt.hashpw(getpass('password:'), hashed)
-            while hash != hashed:
-                print('Неверный пароль')
-                hash = bcrypt.hashpw(getpass('password:'), hashed)
+        self._cls()
+        uid = users[login][0]
 
-            uid = users[login][0]
-
-        else:
+        if login.lower() == 'neo':
             from matrix_curses import matrix_curses
 
             matrix_curses.run(3)
-            uid = -1
+
         if uid != 0:
             del self._fs
             self._fs = FileSystem(self._file_name, uid)
 
-        self._cls()
         if login.lower() != 'neo':
             width_window = int(
                 subprocess.check_output(['stty', 'size']).split()[1])
@@ -238,8 +238,13 @@ class PyOS(object):
         else:
             from sys import stdout
             from random import randint
+            from colorama import init, Fore
 
-            string = 'wake up, neo'
+            init()
+            print(Fore.GREEN, end='')
+            stdout.flush()
+
+            string = 'Wake up, Neo...'
 
             for char in string:
                 print(char, end='')

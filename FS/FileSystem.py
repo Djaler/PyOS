@@ -38,7 +38,7 @@ class FileSystem(object):
 
         if superblock.free_cluster_num == 0:
             raise NoFreeClustersException(
-                'Не осталось свободных блоков данных')
+                    'Не осталось свободных блоков данных')
 
         if len(file_name) > 59:
             raise ValueError('Имя файла должно быть не более 59 символов')
@@ -122,7 +122,7 @@ class FileSystem(object):
                     inode.set_mtime()
                     root.update_inode(file_name, inode)
                     raise NoFreeClustersException(
-                        'Не осталось свободных блоков данных')
+                            'Не осталось свободных блоков данных')
 
                 cluster_index = fat.get_free_cluster()
                 fat.set(index=prev_cluster_index, value=cluster_index)
@@ -160,7 +160,7 @@ class FileSystem(object):
         data = bytes(data, 'utf-8')
 
         cluster_size = superblock.cluster_size
-        file.seek(cluster_offset(clusters[0]) + inode.size)
+        file.seek(cluster_offset(clusters[-1]) + (inode.size % cluster_size))
 
         rest = cluster_size - file.tell() % cluster_size
         file.write(data[:rest])
@@ -172,7 +172,7 @@ class FileSystem(object):
                 inode.set_mtime()
                 root.update_inode(file_name, inode)
                 raise NoFreeClustersException(
-                    'Не осталось свободных блоков данных')
+                        'Не осталось свободных блоков данных')
 
             cluster_index = fat.get_free_cluster()
             fat.set(index=prev_cluster_index, value=cluster_index)
@@ -292,8 +292,8 @@ class FileSystem(object):
 
     def _write_users(self, users):
         data = '\n'.join(
-            '{0} {1} {2}'.format(id, login, hash) for login, (id, hash) in
-            users.items())
+                '{0} {1} {2}'.format(id, login, hash) for login, (id, hash) in
+                users.items())
         try:
             self.write('users', data)
         except PermissionError:

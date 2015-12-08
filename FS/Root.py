@@ -12,17 +12,6 @@ class Root(object):
 
         self._init_files_list()
 
-    @staticmethod
-    def write(superblock, fat, inode_map, file):
-        file.seek(superblock.first_cluster_offset)
-        file.write(pack('1024i', *[-1] * 1024))
-
-        now = int(time())
-        inode = Inode(id=0, size=4096, ctime=now, mtime=now, first_cluster=0)
-        Inode.set_inode(superblock.inode_array_offset, file, inode)
-        inode_map.set(inode.id, False)
-        fat.set(0, -1)
-
     def add(self, file_name, inode):
         superblock = self._superblock
         fat = self._fat
@@ -162,3 +151,14 @@ class Root(object):
     @property
     def list(self):
         return self._list.copy()
+
+    @staticmethod
+    def write(superblock, fat, inode_map, file):
+        file.seek(superblock.first_cluster_offset)
+        file.write(pack('1024i', *[-1] * 1024))
+
+        now = int(time())
+        inode = Inode(id=0, size=4096, ctime=now, mtime=now, first_cluster=0)
+        Inode.set_inode(superblock.inode_array_offset, file, inode)
+        inode_map.set(inode.id, False)
+        fat.set(0, -1)

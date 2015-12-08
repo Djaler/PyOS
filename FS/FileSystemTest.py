@@ -17,13 +17,13 @@ class MyTestCase(unittest.TestCase):
         FileSystem.format('test')
         fs = FileSystem('test')
 
-        text = ''.join(str(i) for i in range(1000))
+        text = ''.join(str(i) for i in range(10000))
         fs.write('file1', text)
 
         res = fs.read('file1')
         self.assertEqual(text, res)
 
-        append_text = ''.join(str(i) for i in reversed(range(1000)))
+        append_text = ''.join(str(i) for i in reversed(range(10000)))
         fs.append('file1', append_text)
 
         res = fs.read('file1')
