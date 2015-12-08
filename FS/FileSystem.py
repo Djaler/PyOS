@@ -91,7 +91,6 @@ class FileSystem(object):
 
         if file_name not in root.list:
             self.create(file_name)
-
         inode = root.read(file_name)
         if uid != 0:
             if inode.uid == uid and not inode.owner_write:
@@ -103,7 +102,7 @@ class FileSystem(object):
 
         data = bytes(data, 'utf-8')
 
-        len_old_data = len(self.read(file_name))
+        len_old_data = inode.size
 
         cluster_size = superblock.cluster_size
 

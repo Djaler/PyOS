@@ -29,6 +29,7 @@ def producer(count, empty, full, mutex, key, memory):
         print(current_thread_name, 'вышел из критической области')
         mutex.up()
         full.up()
+
     print(current_thread_name, 'завершил работу')
 
 
@@ -55,12 +56,13 @@ def consumer(count, empty, full, mutex, key, memory):
         print(current_thread_name, 'вышел из критической области')
         mutex.up()
         empty.up()
+
     print(current_thread_name, 'завершил работу')
     memory.clear_page(key)
 
 
 page_size = 3
-page_count = 1
+page_count = 2
 
 memory = SharedMemory(page_size=page_size, page_count=page_count)
 
