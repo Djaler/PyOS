@@ -40,7 +40,7 @@ class PyOS(object):
         methods = [self._create, self._read, self._write, self._append,
                    self._copy, self._rename, self._delete, self._set_perm,
                    self._list, self._add_user, self._del_user, self._exit,
-                   self._help]
+                   self._help, self._set_owner]
         self._commands = {method.__name__[1:]: method for method in methods}
 
     def _create(self, command):
@@ -137,6 +137,17 @@ class PyOS(object):
         except (FileNotFoundError, PermissionError) as e:
             print(e)
 
+    def _set_owner(self, command):
+        """Установить владельца"""
+        if len(command) != 3:
+            self._command_not_found()
+            return
+
+        try:
+            self._fs.set_owner(command[1], command[2])
+        except (FileNotFoundError, PermissionError, ValueError) as e:
+            print(e)
+
     def _list(self, command):
         """Список файлов"""
         if len(command) != 1:
@@ -146,8 +157,8 @@ class PyOS(object):
         files_list = self._fs.files_list
         users = {id: login for login, (id, hash) in self._fs.users.items()}
         table = PrettyTable(
-            ['Название', 'Размер', 'Права доступа', 'Владелец'], border=0,
-            padding_width=2)
+                ['Название', 'Размер', 'Права доступа', 'Владелец'], border=0,
+                padding_width=2)
 
         for file_name in sorted(files_list):
             inode = files_list[file_name]
@@ -163,7 +174,7 @@ class PyOS(object):
                            'r' if inode.other_read else '-',
                            'w' if inode.other_write else '-']
             table.add_row(
-                [file_name, size, ''.join(permissions), users[inode.uid]])
+                    [file_name, size, ''.join(permissions), users[inode.uid]])
 
         print(table)
 
@@ -232,7 +243,7 @@ class PyOS(object):
 
         if login.lower() != 'neo':
             width_window = int(
-                subprocess.check_output(['stty', 'size']).split()[1])
+                    subprocess.check_output(['stty', 'size']).split()[1])
             print(figlet_format('WELCOME HOME,  MR. %s' % login.upper(),
                                 font='big', width=width_window))
         else:

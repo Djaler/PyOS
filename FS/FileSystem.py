@@ -255,6 +255,28 @@ class FileSystem(object):
         inode.set_permissions(*permissions)
         root.update_inode(file_name, inode)
 
+    def set_owner(self, file_name, owner):
+        root = self._root
+        files_list = root.list
+        uid = self._uid
+        users = self.users
+
+        if file_name not in files_list:
+            raise FileNotFoundError('Файл с таким именем отсутствует')
+
+        if owner not in users:
+            raise ValueError('Такого пользователя нет')
+
+        inode = root.read(file_name)
+        if uid != 0:
+            if inode.uid == uid and not inode.owner_write:
+                raise PermissionError('Нет прав')
+            elif inode.uid != uid and not inode.other_write:
+                raise PermissionError('Нет прав')
+
+        inode.uid = users[owner][0]
+        root.update_inode(file_name, inode)
+
     def add_user(self, login, password):
         users = self.users
 
@@ -311,9 +333,6 @@ class FileSystem(object):
         file.write(b'\0')
 
         superblock = SuperBlock.default(size)
-        fat = FAT.empty(superblock.cluster_num, superblock)
-
-        inode_map = InodeMap.empty(superblock.cluster_num)
 
         file.seek(superblock.inode_array_offset)
         inode_table = [Inode(id) for id in range(superblock.cluster_num)]
@@ -326,6 +345,10 @@ class FileSystem(object):
         superblock.free_cluster_num = (
             superblock.cluster_num - superblock.first_cluster_offset //
             cluster_size)
+
+        fat = FAT.empty(superblock.free_cluster_num, superblock)
+
+        inode_map = InodeMap.empty(superblock.free_cluster_num)
 
         Root.write(superblock, fat, inode_map, file)
 
