@@ -1,5 +1,5 @@
 from struct import pack, unpack, calcsize
-from time import time
+from time import time, localtime, strftime
 
 
 class Inode(object):
@@ -34,6 +34,14 @@ class Inode(object):
 
     def set_mtime(self):
         self._mtime = int(time())
+
+    @property
+    def ctime(self):
+        return strftime('%d %b %H:%M:%S', localtime(self._ctime))
+
+    @property
+    def mtime(self):
+        return strftime('%d %b %H:%M:%S', localtime(self._mtime))
 
     @property
     def owner_read(self):

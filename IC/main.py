@@ -7,13 +7,15 @@ from IC.shared_memory import SharedMemory
 
 def producer(count, empty, full, mutex, key, memory):
     current_thread_name = current_thread().name
-    shared_memory = memory.get_page(key)
-    while not shared_memory:
-        print(current_thread_name, 'ожидает освобождения страницы памяти')
-        sleep(1)
-        shared_memory = memory.get_page(key)
 
     for item in range(count):
+        shared_memory = memory.get_page(key)
+        while not shared_memory:
+            print(current_thread_name, 'ожидает освобождения страницы памяти')
+            sleep(1)
+            shared_memory = memory.get_page(key)
+        print(current_thread_name, 'присоединил страницу памяти')
+
         print(current_thread_name, 'произвел элемент', item)
         while not empty.down():
             print(current_thread_name, 'ожидает появления места для элемента')
@@ -23,10 +25,10 @@ def producer(count, empty, full, mutex, key, memory):
             print(current_thread_name, 'ожидает входа в критическую область')
             sleep(1)
 
-        print(current_thread_name, 'вошел в критическую область')
-        shared_memory.append(str(item))
-        print(current_thread_name, 'поместил элемент', item, 'в буфер')
-        print(current_thread_name, 'вышел из критической области')
+        shared_memory[full.value] = str(item)
+        print(current_thread_name,
+              'вошел в критическую область, поместил элемент', item,
+              'и вышел из критической области')
         mutex.up()
         full.up()
 
@@ -35,13 +37,14 @@ def producer(count, empty, full, mutex, key, memory):
 
 def consumer(count, empty, full, mutex, key, memory):
     current_thread_name = current_thread().name
-    shared_memory = memory.get_page(key)
-    while not shared_memory:
-        print(current_thread_name, 'ожидает освобождения страницы памяти')
-        sleep(1)
-        shared_memory = memory.get_page(key)
-
     for _ in range(count):
+        shared_memory = memory.get_page(key)
+        while not shared_memory:
+            print(current_thread_name, 'ожидает освобождения страницы памяти')
+            sleep(1)
+            shared_memory = memory.get_page(key)
+        print(current_thread_name, 'присоединил страницу памяти')
+
         while not full.down():
             print(current_thread_name, 'ожидает новый элемент')
             sleep(1)
@@ -50,15 +53,18 @@ def consumer(count, empty, full, mutex, key, memory):
             print(current_thread_name, 'ожидает входа в критическую область')
             sleep(1)
 
-        print(current_thread_name, 'вошел в критическую область')
-        print(current_thread_name, 'считал элемент', shared_memory.pop(),
-              'из буфера')
+        print(current_thread_name,
+              'вошел в критическую область, считал элемент',
+              shared_memory[full.value])
+        shared_memory[full.value] = 0
+        if full.value == 0:
+            memory.clear_page(key)
+            print(current_thread_name, 'освободил страницу памяти')
         print(current_thread_name, 'вышел из критической области')
         mutex.up()
         empty.up()
 
     print(current_thread_name, 'завершил работу')
-    memory.clear_page(key)
 
 
 page_size = 3

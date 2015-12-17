@@ -2,12 +2,14 @@ import os
 import subprocess
 from getpass import getpass
 from time import sleep
+
 import bcrypt
 from pyfiglet import figlet_format
 from prettytable import PrettyTable
 from prompt_toolkit import prompt
 from prompt_toolkit.history import InMemoryHistory
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
+
 from FS.FileSystem import FileSystem, NoFreeClustersException
 
 
@@ -156,9 +158,10 @@ class PyOS(object):
 
         files_list = self._fs.files_list
         users = {id: login for login, (id, hash) in self._fs.users.items()}
-        table = PrettyTable(
-                ['Название', 'Размер', 'Права доступа', 'Владелец'], border=0,
-                padding_width=2)
+        table = PrettyTable(['Название', 'Размер', 'Права доступа', 'Владелец',
+                             'Дата и время создания',
+                             'Дата и время изменения'], border=0,
+                            padding_width=2)
 
         for file_name in sorted(files_list):
             inode = files_list[file_name]
@@ -174,7 +177,8 @@ class PyOS(object):
                            'r' if inode.other_read else '-',
                            'w' if inode.other_write else '-']
             table.add_row(
-                    [file_name, size, ''.join(permissions), users[inode.uid]])
+                    [file_name, size, ''.join(permissions), users[inode.uid],
+                     inode.ctime, inode.mtime])
 
         print(table)
 

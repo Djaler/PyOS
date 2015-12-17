@@ -38,7 +38,7 @@ class SuperBlock(object):
                           inode_array_offset, first_cluster_offset)
 
     @staticmethod
-    def get_superblock(file):
+    def read(file):
         format = SuperBlock._format
         file.seek(0)
         return SuperBlock(*unpack(format, file.read(calcsize(format))))

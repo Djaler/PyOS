@@ -10,7 +10,7 @@ from FS.Root import Root
 class FileSystem(object):
     def __init__(self, file_name, uid=0):
         self._file = open(file_name, 'rb+')
-        self._superblock = SuperBlock.get_superblock(self._file)
+        self._superblock = SuperBlock.read(self._file)
         self._fat = FAT.read(self._superblock.cluster_num,
                              self._superblock.fat_offset, self._file,
                              self._superblock)
