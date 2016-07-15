@@ -229,10 +229,10 @@ class PyOS(object):
             login = input('login:')
 
         hashed = users[login][1]
-        hash = bcrypt.hashpw(getpass('password:'), hashed)
-        while hash != hashed:
+        
+        while not bcrypt.checkpw(getpass('password:').encode(),
+                                 hashed.encode()):
             print('Неверный пароль')
-            hash = bcrypt.hashpw(getpass('password:'), hashed)
         self._cls()
         uid = users[login][0]
 
